@@ -1,150 +1,119 @@
-import csv
-
+import pandas as pd
 import numpy as np
+import scipy.stats as stats
 import matplotlib.pyplot as plt
-from scipy import stats
 
-class Solution:
-    def custom_alignment(self):
-        name = "pritdesai"  # Replace with your concatenated first and last name
-        alphabet = "abcdefghijklmnopqrstuvwxyz"
-        semi_matches = set(name)
+# Load dataset
+UTA_ID = "1002170533"
+filename = f"{UTA_ID}.csv"
+df = pd.read_csv(filename)
 
-        S = {}
-        for char1 in alphabet:
-            S[char1] = {}
-            for char2 in alphabet:
-                if char1 == char2:
-                    S[char1][char2] = 2  # Match
-                elif char2 in semi_matches:
-                    S[char1][char2] = 1  # Semi-match
-                else:
-                    S[char1][char2] = -1  # Mismatch
+# Ensure correct column names
+expected_columns = {"SNP", "Case_C", "Case_T", "Control_C", "Control_T"}
+if not expected_columns.issubset(df.columns):
+    print(f"Error: Missing expected columns. Found columns: {df.columns}")
+    exit()
 
-        return S, name
+# Check for missing values and fill with zeros
+df.fillna(0, inplace=True)
 
-    def local_alignment(self, sequence_A: str, sequence_B: str, substitution: dict, gap: int) -> [tuple]:
-        m, n = len(sequence_A), len(sequence_B)
-        D = [[0] * (n + 1) for _ in range(m + 1)]
-
-        max_score = 0
-        max_pos = (0, 0)
-
-        for i in range(1, m + 1):
-            for j in range(1, n + 1):
-                match = D[i - 1][j - 1] + substitution[sequence_A[i - 1]][sequence_B[j - 1]]
-                delete = D[i - 1][j] + gap
-                insert = D[i][j - 1] + gap
-                D[i][j] = max(0, match, delete, insert)
-
-                if D[i][j] > max_score:
-                    max_score = D[i][j]
-                    max_pos = (i, j)
-
-        align_A, align_B = "", ""
-        i, j = max_pos
-
-        while D[i][j] > 0:
-            if D[i][j] == D[i - 1][j - 1] + substitution[sequence_A[i - 1]][sequence_B[j - 1]]:
-                align_A = sequence_A[i - 1] + align_A
-                align_B = sequence_B[j - 1] + align_B
-                i -= 1
-                j -= 1
-            elif D[i][j] == D[i - 1][j] + gap:
-                align_A = sequence_A[i - 1] + align_A
-                align_B = "-" + align_B
-                i -= 1
-            else:
-                align_A = "-" + align_A
-                align_B = sequence_B[j - 1] + align_B
-                j -= 1
-
-        return [(align_A, align_B)]
-
-
-# Read the CSV file
-data = []
-with open('1002170533.csv', 'r') as file:
-    csv_reader = csv.reader(file)
-    next(csv_reader)  # Skip header
-    for row in csv_reader:
-        data.append(row)
-
-# Perform Fisher's exact test
-p_values = []
-effective_p_value = 5e-8
-bonferroni_corrected_p_value = effective_p_value / len(data)
+# Perform Fisher's Exact Test for each SNP
+significance_threshold = 5e-8
+num_tests = len(df)
+bonferroni_threshold = significance_threshold / num_tests
 
 results = []
-for row in data:
-    snp, case_c, case_t, control_c, control_t = row
-    _, p_value = stats.fisher_exact([[int(case_c), int(case_t)], [int(control_c), int(control_t)]])
-    p_values.append(p_value)
+for index, row in df.iterrows():
+    table = [[row["Case_C"], row["Case_T"]], [row["Control_C"], row["Control_T"]]]
+    odds_ratio, p = stats.fisher_exact(table, alternative='two-sided')
+    significant = p < significance_threshold
+    bonferroni_significant = p < bonferroni_threshold
+    results.append([row["SNP"], p, significant, bonferroni_significant])
 
-    is_significant_original = p_value < effective_p_value
-    is_significant_corrected = p_value < bonferroni_corrected_p_value
+# Convert results to DataFrame and save
+results_df = pd.DataFrame(results, columns=["SNP", "P-value", "Significant", "Bonferroni-Significant"])
+results_df.to_csv("results.csv", index=False)
+print("Results saved in results.csv")
 
-    results.append([snp, p_value, is_significant_original, is_significant_corrected])
-
-# Save results to CSV
-with open('results.csv', 'w', newline='') as file:
-    csv_writer = csv.writer(file)
-    csv_writer.writerow(['SNP', 'p-value', 'Significant (Original)', 'Significant (Corrected)'])
-    csv_writer.writerows(results)
-
-
-# Create an instance of the Solution class
-solution = Solution()
-
-# Generate custom substitution matrix and name
-S, name = solution.custom_alignment()
-
-# Perform local alignment
-result = solution.local_alignment(name, "thequickbrownfoxjumpsoverthelazydog", S, -2)
-
-
-# Manhattan Plot
-plt.figure(figsize=(12, 6))
-plot_x = range(1, len(p_values) + 1)
-plot_y = [-np.log10(p) for p in p_values]
-
-plt.axhline(y=-np.log10(effective_p_value), color='r', linestyle='--', label=f'Original Threshold (5e-8)')
-plt.axhline(y=-np.log10(bonferroni_corrected_p_value), color='b', linestyle='--', label=f'Bonferroni Correction ({bonferroni_corrected_p_value:.2e})')
-plt.scatter(plot_x, plot_y, s=10, alpha=0.6, edgecolors='k')
+# Generate Manhattan Plot
+plt.figure(figsize=(10, 5))
+plt.scatter(range(len(results_df)), -np.log10(results_df["P-value"]), color="blue", alpha=0.7)
+plt.axhline(y=-np.log10(significance_threshold), color="red", linestyle="dashed", label="Significance (5e-8)")
+plt.axhline(y=-np.log10(bonferroni_threshold), color="green", linestyle="dashed", label="Bonferroni Threshold")
 plt.xlabel("SNP Index")
-plt.ylabel("-log10(p-values)")
-plt.title("Manhattan Plot for GWAS")
+plt.ylabel("-log10(P-value)")
+plt.title("Manhattan Plot")
 plt.legend()
-plt.tight_layout()
-plt.savefig('manhattan_plot.png')
-plt.close()
+plt.savefig("manhattan_plot.png")
+plt.show()
+print("Manhattan plot saved.")
 
+# Substitution Matrix for Custom Alignment
+characters = "abcdefghijklmnopqrstuvwxyz "
+name = "pritdesai"
+pangram = "thequickbrownfoxjumpsoverthelazydog"
 
-# Print the result
-print("Alignment result:", result)
+S = np.zeros((len(characters), len(characters)), dtype=int)
+char_to_index = {char: idx for idx, char in enumerate(characters)}
 
-# Pretty print the substitution matrix S
-S_matrix = [['-'] + list(S.keys())] + [[key] + [S[key][k] for k in S[key]] for key in S]
+for i, c1 in enumerate(characters):
+    for j, c2 in enumerate(characters):
+        if c1 == c2:
+            S[i][j] = 2  # Match
+        elif c1 in name and c2 in name:
+            S[i][j] = 1  # Semi-Match
+        else:
+            S[i][j] = -1  # Mismatch
 
+# Save S matrix
+with open(f"{UTA_ID}_S.txt", "w") as f:
+    f.write("  " + " ".join(characters) + "\n")
+    for i, char in enumerate(characters):
+        f.write(char + " " + " ".join(map(str, S[i])) + "\n")
 
-# Save S matrix to file
-np.savetxt('1002170533_S.txt', S_matrix, fmt='%s', delimiter='\t')
+# Smith-Waterman Algorithm
+def smith_waterman(seq1, seq2, S, gap_penalty=-1):
+    m, n = len(seq1), len(seq2)
+    D = np.zeros((m+1, n+1), dtype=int)
+    max_score, max_pos = 0, (0, 0)
 
-# Pretty print the alignment matrix D
-sequence_A = name
-sequence_B = "thequickbrownfoxjumpsoverthelazydog"
-m, n = len(sequence_A), len(sequence_B)
-D = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(1, m+1):
+        for j in range(1, n+1):
+            match = D[i-1][j-1] + S[char_to_index[seq1[i-1]], char_to_index[seq2[j-1]]]
+            delete = D[i-1][j] + gap_penalty
+            insert = D[i][j-1] + gap_penalty
+            D[i][j] = max(0, match, delete, insert)
+            if D[i][j] > max_score:
+                max_score, max_pos = D[i][j], (i, j)
 
-for i in range(1, m + 1):
-    for j in range(1, n + 1):
-        match = D[i - 1][j - 1] + S[sequence_A[i - 1]][sequence_B[j - 1]]
-        delete = D[i - 1][j] - 2
-        insert = D[i][j - 1] - 2
-        D[i][j] = max(0, match, delete, insert)
+    return D
 
-D_matrix = [['-'] + list(sequence_B)] + [[sequence_A[i - 1]] + D[i][1:] for i in range(1, m + 1)]
+D = smith_waterman(name, pangram, S)
+with open(f"{UTA_ID}_D.txt", "w") as f:
+    for row in D:
+        f.write(" ".join(map(str, row)) + "\n")
+print("Alignment matrix saved.")
 
+# Needleman-Wunsch Algorithm
+def needleman_wunsch(seq1, seq2, S, gap_penalty=-1):
+    m, n = len(seq1), len(seq2)
+    D = np.zeros((m+1, n+1), dtype=int)
+    for i in range(m+1):
+        D[i][0] = i * gap_penalty
+    for j in range(n+1):
+        D[0][j] = j * gap_penalty
 
-# Save D matrix to file
-np.savetxt('1002170533_D.txt', D_matrix, fmt='%s', delimiter='\t')
+    for i in range(1, m+1):
+        for j in range(1, n+1):
+            match = D[i-1][j-1] + S[char_to_index[seq1[i-1]], char_to_index[seq2[j-1]]]
+            delete = D[i-1][j] + gap_penalty
+            insert = D[i][j-1] + gap_penalty
+            D[i][j] = max(match, delete, insert)
+
+    return D
+
+D_global = needleman_wunsch(name, pangram, S)
+with open(f"{UTA_ID}_NW.txt", "w") as f:
+    for row in D_global:
+        f.write(" ".join(map(str, row)) + "\n")
+print("Global alignment matrix saved.")

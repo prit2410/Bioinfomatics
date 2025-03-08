@@ -1,4 +1,4 @@
-SNP,p-value,Significant (Original),Significant (Corrected)
+SNP,P-value,Significant,Bonferroni-Significant
 snp1,0.009308374801676395,False,False
 snp2,0.12021187158402502,False,False
 snp3,1.3267117376862326e-05,False,False

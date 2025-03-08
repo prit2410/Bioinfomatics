@@ -1,0 +1,59 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\title{CSE 5370: Bioinformatics Homework 1 Write-up}
+\author{Prit Desai (UTA ID: 1002170533)}
+\date{March 7, 2025}
+
+\begin{document}
+
+\maketitle
+
+\section{Genome-Wide Association Study (GWAS)}
+
+\subsection{Fisher's Exact Test and Results}
+For each SNP, I performed Fisher's Exact Test using the contingency table:
+\begin{center}
+$\begin{bmatrix} Case_C & Case_T \\ Control_C & Control_T \end{bmatrix}$
+\end{center}
+I used the two-sided alternative hypothesis to determine statistical significance. The results were stored in \texttt{results.csv} with the following columns:
+\begin{itemize}
+    \item \textbf{SNP}: The SNP identifier.
+    \item \textbf{P-value}: The p-value from Fisher's Exact Test.
+    \item \textbf{Significant}: Boolean flag for SNPs where p < $5 \times 10^{-8}$.
+    \item \textbf{Bonferroni-Significant}: Boolean flag for SNPs where p < $(5 \times 10^{-8} / 1000)$.
+\end{itemize}
+
+\subsection{Manhattan Plot}
+A Manhattan plot was generated with \texttt{-log10(P-value)} plotted against SNP index. The red dashed line represents the $5 \times 10^{-8}$ threshold, and the green dashed line represents the Bonferroni-corrected threshold. The plot was saved as \texttt{manhattan\_plot.png}.
+
+\section{Sequence Alignment}
+
+\subsection{Custom Substitution Matrix}
+A substitution matrix was created for the 26 letters of the English alphabet and space:
+\begin{itemize}
+    \item Match: +2
+    \item Semi-match (characters present in "pritdesai"): +1
+    \item Mismatch: -1
+\end{itemize}
+This matrix was stored in \texttt{1002170533\_S.txt}.
+
+\subsection{Local Alignment: Smith-Waterman Algorithm}
+The Smith-Waterman algorithm was used for local alignment of "pritdesai" and the pangram "the quick brown fox jumps over the lazy dog." The final alignment matrix was stored in \texttt{1002170533\_D.txt}.
+
+\subsection{Global Alignment: Needleman-Wunsch Algorithm}
+The Needleman-Wunsch algorithm was implemented to compute the global alignment between "pritdesai" and the pangram. The resulting matrix was saved in \texttt{1002170533\_NW.txt}.
+
+\section{Conclusion}
+All required statistical tests and alignments were implemented successfully, with results formatted correctly for grading.
+
+\section{Difficulty Adjustment}
+\begin{itemize}
+    \item \textbf{How long did this assignment take you to complete?} \\ 
+    This assignment took approximately 8 hours to complete.
+    \item \textbf{If the assignment took you longer than 10 hours, which parts were overly difficult?} \\ 
+    The assignment was completed within 8 hours, but the most challenging part was implementing the Fisher's Exact Test correctly and ensuring the proper formatting of the Manhattan plot.
+\end{itemize}
+
+\end{document}
